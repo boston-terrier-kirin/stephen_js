@@ -1,8 +1,15 @@
 const express = require('express');
-const { check } = require('express-validator');
 const usersRepository = require('../../repository/users');
 const signupTemplate = require('../../views/admin/auth/signup');
 const signinTemplate = require('../../views/admin/auth/signin');
+const {
+  requireEmail,
+  requirePassword,
+  requirePasswordConfirmation,
+  requireEmailExists,
+  requireValidPasswordForUser,
+} = require('./validators');
+const { handleErrors } = require('./middlewares');
 
 const router = express.Router();
 
@@ -30,23 +37,14 @@ router.get('/signup', (req, res) => {
 
 router.post(
   '/signup',
-  [check('email').isEmail(), check('password'), check('passwordConfirmation')],
+  [requireEmail, requirePassword, requirePasswordConfirmation],
+  handleErrors(signupTemplate),
   async (req, res) => {
-    const { email, password, passwordConfirmation } = req.body;
-
-    const existingUser = await usersRepository.getOneBy({ email });
-    if (existingUser) {
-      return res.send('Email in use');
-    }
-
-    if (password !== passwordConfirmation) {
-      return res.send('Passwords must match');
-    }
-
+    const { email, password } = req.body;
     const user = await usersRepository.create({ email, password });
     req.session.userId = user.id;
 
-    res.send('Account Created!');
+    res.redirect('/admin/products');
   }
 );
 
@@ -56,24 +54,20 @@ router.get('/signout', (req, res) => {
 });
 
 router.get('/signin', (req, res) => {
-  res.send(signinTemplate());
+  res.send(signinTemplate({ req }));
 });
 
-router.post('/signin', async (req, res) => {
-  const { email, password } = req.body;
+router.post(
+  '/signin',
+  [requireEmailExists, requireValidPasswordForUser],
+  handleErrors(signinTemplate),
+  async (req, res) => {
+    const { email } = req.body;
+    const user = await usersRepository.getOneBy({ email });
+    req.session.userId = user.id;
 
-  const user = await usersRepository.getOneBy({ email });
-  if (!user) {
-    return res.send('Invalid credentials.');
+    res.redirect('/admin/products');
   }
-
-  if (!(await usersRepository.comparePassword(user.password, password))) {
-    return res.send('Invalid credentials.');
-  }
-
-  req.session.userId = user.id;
-
-  res.send('You are logged in!');
-});
+);
 
 module.exports = router;
