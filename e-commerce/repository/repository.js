@@ -22,6 +22,8 @@ module.exports = class Repository {
     records.push(attrs);
 
     await this.writeAll(records);
+
+    return attrs;
   }
 
   async getAll() {
